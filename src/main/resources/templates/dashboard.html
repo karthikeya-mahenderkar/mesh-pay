@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UPI Offline Mesh — Engineering Console</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <script>
+        if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    </script>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        background: 'var(--bg)',
+                        surface: 'var(--surface)',
+                        border: 'var(--border)',
+                        muted: 'var(--muted)',
+                        primary: 'var(--primary)',
+                        accent: '#3b82f6',
+                        success: '#22c55e',
+                        danger: '#ef4444'
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --bg: #f4f4f5;
+            --surface: #ffffff;
+            --border: #e4e4e7;
+            --muted: #71717a;
+            --primary: #18181b;
+        }
+        .dark {
+            --bg: #000000;
+            --surface: #0a0a0a;
+            --border: #27272a;
+            --muted: #a1a1aa;
+            --primary: #ededed;
+        }
+
+        body { background-color: var(--bg); color: var(--primary); transition: background-color 0.2s, color 0.2s; }
+        .glass-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; transition: background-color 0.2s, border-color 0.2s; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        .pulse-dot { position: relative; display: flex; width: 8px; height: 8px; }
+        .pulse-dot-inner { position: absolute; display: inline-flex; height: 100%; width: 100%; border-radius: 50%; opacity: 0.8; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite; }
+        .pulse-dot-core { position: relative; display: inline-flex; border-radius: 50%; height: 8px; width: 8px; }
+        
+        @keyframes ping {
+            75%, 100% { transform: scale(2); opacity: 0; }
+        }
+        
+        input, select { background: var(--bg); border: 1px solid var(--border); color: var(--primary); outline: none; transition: border-color 0.2s; }
+        input:focus, select:focus { border-color: var(--muted); }
+        button { transition: transform 0.1s, background 0.2s; }
+        button:active { transform: scale(0.97); }
+    </style>
+</head>
+<body class="flex flex-col h-screen overflow-hidden selection:bg-zinc-800">
+
+    <!-- Header -->
+    <header class="h-14 flex-none border-b border-border bg-background flex items-center justify-between px-6 z-10 transition-colors">
+        <div class="flex items-center gap-3">
+            <div class="w-7 h-7 bg-primary text-background rounded-md flex items-center justify-center transition-colors">
+                <i data-lucide="triangle" class="w-4 h-4 fill-current"></i>
+            </div>
+            <span class="font-semibold tracking-tight">UPI Mesh Console</span>
+            <div class="h-4 w-px bg-border mx-2 transition-colors"></div>
+            <div class="flex items-center gap-2">
+                <div class="pulse-dot">
+                    <span class="pulse-dot-inner bg-success"></span>
+                    <span class="pulse-dot-core bg-success"></span>
+                </div>
+                <span class="text-xs font-medium text-muted uppercase tracking-wider">System Online</span>
+            </div>
+        </div>
+        <div class="flex items-center gap-4 text-muted">
+            <button onclick="toggleTheme()" class="hover:text-primary transition-colors flex items-center justify-center w-8 h-8 rounded-md border border-transparent hover:border-border" title="Toggle Theme">
+                <i data-lucide="sun" class="w-4 h-4 hidden dark:block"></i>
+                <i data-lucide="moon" class="w-4 h-4 block dark:hidden"></i>
+            </button>
+            <div class="h-4 w-px bg-border transition-colors"></div>
+            <button onclick="resetMesh()" class="hover:text-primary transition-colors flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider">
+                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Reset
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex overflow-hidden p-6 gap-6">
+        
+        <!-- Left Column: Controls -->
+        <aside class="w-80 flex flex-col gap-6 overflow-y-auto scrollbar-hide">
+            <div class="glass-card p-5 flex flex-col gap-5">
+                <h2 class="text-xs font-medium text-muted uppercase tracking-wider flex items-center gap-2">
+                    <i data-lucide="terminal-square" class="w-4 h-4"></i> Simulator
+                </h2>
+                <div class="flex flex-col gap-3 text-sm">
+                    <div class="flex flex-col gap-1.5">
+                        <label class="text-[10px] uppercase text-muted font-semibold">Sender VPA</label>
+                        <select id="senderVpa" class="px-3 py-2 rounded-lg text-xs">
+                            <option>alice@demo</option>
+                            <option>bob@demo</option>
+                            <option>carol@demo</option>
+                        </select>
+                    </div>
+                    <div class="flex flex-col gap-1.5">
+                        <label class="text-[10px] uppercase text-muted font-semibold">Receiver VPA</label>
+                        <select id="receiverVpa" class="px-3 py-2 rounded-lg text-xs">
+                            <option>bob@demo</option>
+                            <option>carol@demo</option>
+                            <option>alice@demo</option>
+                            <option>dave@demo</option>
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-[10px] uppercase text-muted font-semibold">Amount (₹)</label>
+                            <input type="number" id="amount" value="500" class="px-3 py-2 rounded-lg text-xs">
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-[10px] uppercase text-muted font-semibold">Auth PIN</label>
+                            <input type="password" id="pin" value="1234" maxlength="4" class="px-3 py-2 rounded-lg text-xs tracking-[0.2em] text-center font-mono">
+                        </div>
+                    </div>
+                    <button onclick="sendPacket()" class="mt-2 bg-primary text-background hover:opacity-90 py-2 rounded-lg font-medium text-xs flex items-center justify-center gap-2 transition-opacity">
+                        <i data-lucide="send" class="w-3.5 h-3.5"></i> Inject Packet
+                    </button>
+                </div>
+            </div>
+
+            <div class="glass-card p-5 flex flex-col gap-4">
+                <h2 class="text-xs font-medium text-muted uppercase tracking-wider flex items-center gap-2">
+                    <i data-lucide="cpu" class="w-4 h-4"></i> Execution
+                </h2>
+                <div class="flex flex-col gap-2">
+                    <button onclick="gossip()" class="bg-surface hover:bg-border border border-border py-2 rounded-lg font-medium text-xs flex items-center justify-center gap-2 transition-colors">
+                        <i data-lucide="network" class="w-3.5 h-3.5 text-accent"></i> Run Gossip Round
+                    </button>
+                    <button onclick="flushBridges()" class="bg-surface hover:bg-border border border-border py-2 rounded-lg font-medium text-xs flex items-center justify-center gap-2 transition-colors">
+                        <i data-lucide="cloud-upload" class="w-3.5 h-3.5 text-success"></i> Flush Bridges
+                    </button>
+                </div>
+            </div>
+            
+            <div class="glass-card p-5 flex-1 flex flex-col gap-4 min-h-0">
+                <h2 class="text-xs font-medium text-muted uppercase tracking-wider flex items-center gap-2">
+                    <i data-lucide="wallet" class="w-4 h-4"></i> Vault Balances
+                </h2>
+                <div id="accounts-list" class="flex-1 overflow-y-auto scrollbar-hide space-y-2">
+                    <!-- JS -->
+                </div>
+            </div>
+        </aside>
+
+        <!-- Center Column: Network -->
+        <section class="flex-1 flex flex-col gap-6 min-w-0">
+            <div class="glass-card flex-1 flex flex-col overflow-hidden relative">
+                <div class="p-5 border-b border-border flex items-center justify-between z-10 bg-surface/80 backdrop-blur transition-colors">
+                    <h2 class="text-xs font-medium text-muted uppercase tracking-wider flex items-center gap-2">
+                        <i data-lucide="share-2" class="w-4 h-4"></i> Mesh Topology
+                    </h2>
+                    <span id="cacheInfo" class="font-mono text-[10px] text-muted border border-border px-2 py-0.5 rounded bg-background transition-colors">CACHE: 0</span>
+                </div>
+                <div class="flex-1 overflow-y-auto p-5 scrollbar-hide dark:bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9IiMzZjNmNDYiLz48L3N2Zz4=')] bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9IiNlNGU0ZTciLz48L3N2Zz4=')]">
+                    <div id="devices-grid" class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                        <!-- JS -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Terminal Log -->
+            <div class="h-64 glass-card flex flex-col overflow-hidden bg-background transition-colors">
+                <div class="px-4 py-2 border-b border-border flex items-center gap-3 bg-surface transition-colors">
+                    <div class="flex gap-1.5">
+                        <div class="w-2.5 h-2.5 rounded-full bg-border transition-colors"></div>
+                        <div class="w-2.5 h-2.5 rounded-full bg-border transition-colors"></div>
+                        <div class="w-2.5 h-2.5 rounded-full bg-border transition-colors"></div>
+                    </div>
+                    <span class="text-[10px] font-mono font-medium text-muted uppercase tracking-widest">Protocol Monitor</span>
+                </div>
+                <div id="log" class="flex-1 p-4 font-mono text-[11px] overflow-y-auto scrollbar-hide space-y-1 text-muted">
+                    <!-- JS -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Column: Ledger -->
+        <aside class="w-[340px] flex flex-col gap-6 overflow-hidden">
+            <div class="glass-card flex-1 flex flex-col overflow-hidden">
+                <div class="p-5 border-b border-border transition-colors">
+                    <h2 class="text-xs font-medium text-muted uppercase tracking-wider flex items-center gap-2">
+                        <i data-lucide="list-checks" class="w-4 h-4"></i> Audit Ledger
+                    </h2>
+                </div>
+                <div class="flex-1 overflow-y-auto scrollbar-hide">
+                    <table class="w-full text-left">
+                        <thead class="sticky top-0 bg-surface/90 backdrop-blur z-10 border-b border-border text-[10px] uppercase text-muted tracking-wider transition-colors">
+                            <tr>
+                                <th class="py-2.5 px-4 font-medium">Route</th>
+                                <th class="py-2.5 px-4 font-medium text-right">State</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tx-history" class="text-xs divide-y divide-border transition-colors">
+                            <!-- JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </aside>
+
+    </main>
+
+    <script>
+        function updateIcons() { if (window.lucide) lucide.createIcons(); }
+
+        function toggleTheme() {
+            const html = document.documentElement;
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                localStorage.theme = 'light';
+            } else {
+                html.classList.add('dark');
+                localStorage.theme = 'dark';
+            }
+        }
+
+        function log(msg, mod = 'SYS') {
+            const el = document.getElementById('log');
+            if (!el) return;
+            const time = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const line = document.createElement('div');
+            line.className = 'flex gap-3 hover:bg-border px-2 py-0.5 rounded transition-colors';
+            
+            let modColor = 'text-muted';
+            let msgColor = 'text-primary';
+
+            if (msg.includes('SETTLED') || msg.includes('SUCCESS')) { modColor = 'text-success'; msgColor = 'text-green-500 dark:text-green-400'; }
+            if (msg.includes('REJECTED') || msg.includes('ERROR')) { modColor = 'text-danger'; msgColor = 'text-red-500 dark:text-red-400'; }
+            if (msg.includes('DUPLICATE')) { modColor = 'text-yellow-600 dark:text-yellow-500'; msgColor = 'text-yellow-500 dark:text-yellow-400'; }
+
+            line.innerHTML = `<span class="opacity-60 shrink-0 w-16">${time}</span><span class="${modColor} w-10 shrink-0 font-medium">[${mod}]</span><span class="${msgColor}">${msg}</span>`;
+            el.prepend(line);
+            if (el.children.length > 200) el.lastChild.remove();
+        }
+
+        async function refresh() {
+            try {
+                const [mesh, accounts, transactions] = await Promise.all([
+                    fetch('/api/mesh/state').then(r => r.json()),
+                    fetch('/api/accounts').then(r => r.json()),
+                    fetch('/api/transactions').then(r => r.json())
+                ]);
+
+                document.getElementById('cacheInfo').textContent = `CACHE: ${mesh.idempotencyCacheSize}`;
+
+                // Render Nodes
+                const grid = document.getElementById('devices-grid');
+                grid.innerHTML = mesh.devices.map(d => `
+                    <div class="bg-background border border-border p-4 rounded-xl flex items-center justify-between hover:border-muted transition-colors">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-lg bg-surface flex items-center justify-center border border-border ${d.hasInternet ? 'text-accent' : 'text-muted'} transition-colors">
+                                <i data-lucide="${d.hasInternet ? 'cloud-wifi' : 'smartphone'}" class="w-5 h-5"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-medium text-sm text-primary">${d.deviceId}</h3>
+                                <div class="flex items-center gap-1.5 mt-0.5">
+                                    <div class="pulse-dot">
+                                        <span class="pulse-dot-inner ${d.hasInternet ? 'bg-accent' : 'bg-muted'}"></span>
+                                        <span class="pulse-dot-core ${d.hasInternet ? 'bg-accent' : 'bg-muted'}"></span>
+                                    </div>
+                                    <span class="text-[9px] font-medium text-muted uppercase tracking-widest">${d.hasInternet ? 'Gateway' : 'Peer'}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex flex-col items-end gap-1.5">
+                            <span class="text-[10px] font-mono text-muted border border-border bg-surface px-1.5 py-0.5 rounded transition-colors">${d.packetCount} PKT</span>
+                            <div class="flex gap-0.5">
+                                ${Array(Math.min(d.packetCount, 10)).fill(0).map(() => `<div class="w-1 h-2 rounded-sm bg-accent opacity-80"></div>`).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+
+                // Render Accounts
+                const aList = document.getElementById('accounts-list');
+                aList.innerHTML = accounts.map(a => `
+                    <div class="border border-border p-3 rounded-lg flex items-center justify-between bg-background transition-colors">
+                        <div>
+                            <div class="text-sm font-medium text-primary">${a.holderName}</div>
+                            <div class="text-[9px] font-mono text-muted uppercase">${a.vpa}</div>
+                        </div>
+                        <div class="text-sm font-mono font-semibold text-primary">₹${parseFloat(a.balance).toFixed(0)}</div>
+                    </div>
+                `).join('');
+
+                // Render Ledger
+                const txH = document.getElementById('tx-history');
+                txH.innerHTML = transactions.map(t => `
+                    <tr class="transition-colors">
+                        <td class="py-3 px-4">
+                            <div class="text-xs font-medium text-primary truncate w-24">${t.senderVpa}</div>
+                            <div class="text-[9px] text-muted font-mono mt-0.5 w-24 truncate">→ ${t.receiverVpa}</div>
+                        </td>
+                        <td class="py-3 px-4 text-right">
+                            <div class="text-xs font-mono font-semibold text-primary">₹${parseFloat(t.amount).toFixed(0)}</div>
+                            <div class="text-[9px] font-medium uppercase mt-0.5 ${t.status === 'SETTLED' ? 'text-success' : 'text-danger'}">${t.status}</div>
+                        </td>
+                    </tr>
+                `).join('');
+
+                updateIcons();
+            } catch (e) { console.error("API Fetch Error:", e); }
+        }
+
+        async function sendPacket() {
+            const body = {
+                senderVpa: document.getElementById('senderVpa').value,
+                receiverVpa: document.getElementById('receiverVpa').value,
+                amount: parseFloat(document.getElementById('amount').value),
+                pin: document.getElementById('pin').value,
+                ttl: 5, startDevice: 'phone-alice'
+            };
+            try {
+                const r = await fetch('/api/demo/send', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(body)
+                }).then(r => r.json());
+                log(`INJECT [${r.packetId.substring(0,8)}] AT ${r.injectedAt}`, 'SIM');
+                refresh();
+            } catch (e) { log(e.message, 'ERR'); }
+        }
+
+        async function gossip() {
+            try {
+                const r = await fetch('/api/mesh/gossip', {method: 'POST'}).then(r => r.json());
+                log(`GOSSIP: ${r.transfers} HOPS`, 'MSH');
+                refresh();
+            } catch (e) { log(e.message, 'ERR'); }
+        }
+
+        async function flushBridges() {
+            try {
+                const r = await fetch('/api/mesh/flush', {method: 'POST'}).then(r => r.json());
+                log(`BRIDGE: ${r.uploadsAttempted} UPLOADS`, 'CLD');
+                r.results.forEach(res => log(`${res.outcome} ${res.bridgeNode} ${res.packetId.substring(0,8)}`, 'INJ'));
+                refresh();
+            } catch (e) { log(e.message, 'ERR'); }
+        }
+
+        async function resetMesh() {
+            try {
+                await fetch('/api/mesh/reset', {method: 'POST'});
+                log('PURGE: CACHE CLEARED', 'SYS');
+                refresh();
+            } catch (e) { log(e.message, 'ERR'); }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            log('BOOT: KERNEL OK', 'SYS');
+            log('BOOT: LISTENING', 'SYS');
+            updateIcons();
+            refresh();
+            setInterval(refresh, 5000);
+        });
+    </script>
+</body>
+</html>
